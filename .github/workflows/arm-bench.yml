@@ -37,7 +37,7 @@ jobs:
           pip install torch || pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install snntorch
           # ONNX 部分（可选）：numpy 必须锁 1.x，否则 cv2/torch 2.4 会崩
-          pip install "numpy<2" onnx onnxruntime || echo "onnx 安装失败，将跳过"
+          pip install onnx onnxruntime || echo "onnx 安装失败，将跳过"
 
       - name: 跑基准测试
         run: |
