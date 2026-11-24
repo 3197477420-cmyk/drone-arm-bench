@@ -1,0 +1,60 @@
+name: ARM64 inference benchmark
+
+# 在 GitHub 提供的真实 ARM64 机器上测推理耗时，零成本。
+# 适用：公开仓库（公开仓库的 Actions 免费）；私有仓库会消耗额度。
+
+on:
+  workflow_dispatch:      # 手动触发
+  push:
+    paths:
+      - 'arm_ci/**'
+      - '.github/workflows/arm-bench.yml'
+
+jobs:
+  bench:
+    # ubuntu-24.04-arm 是 GitHub 的 ARM64 runner
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 确认确实是 ARM64
+        run: |
+          uname -a
+          lscpu || cat /proc/cpuinfo
+          echo "架构: $(uname -m)"
+          test "$(uname -m)" = "aarch64" || { echo "不是 aarch64，垂跑无意义"; exit 1; }
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          # ARM64 Linux 上 PyPI 的 torch 就是 CPU 版
+          pip install torch || pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install snntorch
+          # ONNX 部分（可选）：numpy 必须锁 1.x，否则 cv2/torch 2.4 会崩
+          pip install "numpy<2" onnx onnxruntime || echo "onnx 安装失败，将跳过"
+
+      - name: 跑基准测试
+        run: |
+          python arm_ci/bench_arm_ci.py --threads 1 2 4 --repeats 10 | tee arm_bench_result.txt
+
+      - name: 上传结果
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm-bench-result
+          path: arm_bench_result.txt
+
+      - name: 结果摘要
+        if: always()
+        run: |
+          {
+            echo '## ARM64 推理基准结果';
+            echo '```';
+            cat arm_bench_result.txt;
+            echo '```';
+          } >> "$GITHUB_STEP_SUMMARY"
